@@ -1,0 +1,32 @@
+#
+# horus-lineage
+# Copyright (C) 2026 QuietFlare
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+"""
+Localization for horus_lineage.
+
+Import ``tr`` (aliased as ``_``) in any module with user-visible strings::
+
+    from horus_lineage.i18n import tr as _
+
+    _("Something happened.")
+"""
+
+from pathlib import Path
+
+from horus_runtime.i18n import make_translator
+
+tr = make_translator("horus_lineage", Path(__file__).parent / "locale")
