@@ -16,13 +16,18 @@ versus retrospective provenance.
 
 ## Decision
 
-Write the plan once per run, at run start: the workflow definition dump,
-its source file when one exists, and digests of referenced code files.
-Write one observation per task, when it finishes: status, target,
-resolved paths, sizes, content digests, timestamps.
+Write the plan once per run, at run start: the workflow definition, its
+source file when one exists, and digests of referenced code files. Write
+one observation per task, when it finishes: status, target, resolved
+paths, sizes, content digests, the resolved command, timestamps.
 
 ## Consequences
 
 A task record is not self-explanatory alone, it needs its run directory
 (see ADR 0002). A run that dies partway still leaves its plan and the
 records of how far it got, because the plan is written first.
+
+"When it finishes" is not a single hook. A task's final status is
+assigned after the task middleware chain returns, and a skipped task
+never enters that chain at all, so the observation is assembled from
+three hooks rather than one. ADR 0007 covers where each attaches.
