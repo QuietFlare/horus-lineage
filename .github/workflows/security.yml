@@ -38,9 +38,7 @@ jobs:
       dependency-review: false
 
   audit:
-    # Pinned to the exact tag while this repo canaries python-audit for
-    # ci-workflows. Revert to @v1 once v1 is promoted onto v1.5.0.
-    uses: QuietFlare/ci-workflows/.github/workflows/python-audit.yml@v1.5.0
+    uses: QuietFlare/ci-workflows/.github/workflows/python-audit.yml@v1
     with:
       # Must be at least this project's requires-python, or pip-audit's
       # resolver cannot install horus-runtime and reports it as missing
