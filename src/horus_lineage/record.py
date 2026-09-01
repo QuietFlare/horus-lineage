@@ -233,15 +233,7 @@ async def build_task_record(
     full for the same reason an executed one is: its outputs exist, and
     omitting them would break every edge through a cached task.
     """
-    incomplete: list[str] = []
-
-    fingerprint = await read_fingerprint(task)
-    if fingerprint is None:
-        incomplete.append("fingerprint")
-    known = _known_digests(fingerprint)
-
-    if not session.config.digests:
-        incomplete.append("digests_disabled")
+    known = _known_digests(await read_fingerprint(task))
 
     reader = ArtifactReader(task.target, session.config.digests)
     inputs = [
@@ -249,6 +241,16 @@ async def build_task_record(
         for artifact in task.inputs
     ]
     outputs = [await reader.entry(artifact) for artifact in task.outputs]
+
+    # A missing fingerprint is not itself a gap. Falling back to hashing
+    # the bytes costs a read and loses nothing, and some task kinds never
+    # write one. What a reader needs to know is whether any artifact ended
+    # up without a digest, because that is an edge it will not see.
+    incomplete: list[str] = []
+    if not session.config.digests:
+        incomplete.append("digests_disabled")
+    elif any("sha256" not in entry for entry in (*inputs, *outputs)):
+        incomplete.append("digests_partial")
 
     return {
         "format": RECORD_FORMAT,
