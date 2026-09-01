@@ -366,3 +366,51 @@ async def _explode(**_kwargs: Any) -> dict[str, Any]:
     Stand-in for a recorder step that fails at the worst moment.
     """
     raise RuntimeError("the recorder is broken")
+
+
+@pytest.mark.usefixtures("horus_context", "init_registry")
+class TestPartialDigests:
+    """
+    Artifacts the engine cannot hash, such as folders and subworkflow
+    ports, leave a record with edges a reader will not see.
+    """
+
+    async def test_an_unhashable_output_is_reported(
+        self, project: Path, records_dir: Path
+    ) -> None:
+        """
+        Staying quiet here would let a reader treat an edgeless node as
+        complete rather than as partial.
+        """
+        as_folder = (
+            "- {id: report, name: Report, kind: folder, path: report_dir/}"
+        )
+        into_folder = (
+            'command: "mkdir -p $report && wc -l < $prepared > $report/n.txt"'
+        )
+        path = project / "workflow.yaml"
+        body = path.read_text()
+        body = body.replace(
+            "- {id: report, name: Report, kind: file, path: report.txt}",
+            as_folder,
+        )
+        body = body.replace(
+            'command: "wc -l < $prepared > $report"', into_folder
+        )
+        path.write_text(body)
+
+        await run_workflow(project)
+        report = record(runs(records_dir)[0], "report")
+
+        assert "sha256" not in report["outputs"][0]
+        assert report["incomplete"] == ["digests_partial"]
+
+    async def test_a_fully_digested_record_stays_clean(
+        self, project: Path, records_dir: Path
+    ) -> None:
+        """
+        A missing fingerprint manifest alone is not a gap, so the
+        ordinary case reports nothing.
+        """
+        await run_workflow(project)
+        assert record(runs(records_dir)[0], "prep")["incomplete"] == []

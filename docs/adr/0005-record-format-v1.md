@@ -230,8 +230,17 @@ recorder's, consistent with ADR 0004.
 ### Recording what was missed
 
 `incomplete` is a list of short codes naming what this record could not
-capture, for example `["output_digests", "fingerprint"]`. It is empty in
-the ordinary case.
+capture. It is empty in the ordinary case.
+
+    digests_disabled   digests were switched off for this run
+    digests_partial    digests were on, and some artifact still has none
+
+A missing fingerprint manifest is not listed. Falling back to hashing the
+bytes costs a read and loses nothing, and some task kinds never write one.
+What a reader needs is whether an artifact ended up without a digest,
+because that is an edge it will not see: a folder, a file that no longer
+exists, or a subworkflow port, which is a boundary placeholder rather than
+a file on disk.
 
 This is mechanical, not evaluative. The recorder states what it failed to
 observe and leaves the reader to decide what that is worth, which is the
