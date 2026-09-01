@@ -26,7 +26,15 @@ the demo runs against your working copy.
 ## Watch it run
 
 ```bash
-horus run workflow.yaml
+uv run horus run workflow.yaml
+```
+
+`uv sync` builds `.venv` but does not put it on your `PATH`, so a bare
+`horus` gives you `command not found`. Either prefix with `uv run`, or
+activate the environment once and drop the prefix:
+
+```bash
+source .venv/bin/activate
 ```
 
 In a real terminal this brings up the live dashboard: a progress bar, a

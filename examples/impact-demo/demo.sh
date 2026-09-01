@@ -13,12 +13,18 @@ set -uo pipefail
 cd "$(dirname "$0")"
 
 RECORDS="${HORUS_LINEAGE_DIR:-$HOME/.horus-lineage}"
-HORUS="${HORUS:-horus}"
+# Prefer the demo's own environment, so uv sync is enough and the
+# venv does not have to be activated first.
+if [ -z "${HORUS:-}" ] && [ -x .venv/bin/horus ]; then
+  HORUS=.venv/bin/horus
+else
+  HORUS="${HORUS:-horus}"
+fi
 PYTHON="${PYTHON:-python3}"
 
 command -v "$HORUS" >/dev/null || {
-  echo "No 'horus' on PATH. Set HORUS=/path/to/horus, or activate the"
-  echo "environment where horus-runtime and horus-lineage are installed."
+  echo "No horus found. Run 'uv sync' here first, or set"
+  echo "HORUS=/path/to/horus."
   exit 1
 }
 
