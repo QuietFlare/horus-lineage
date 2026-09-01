@@ -56,3 +56,5 @@ CLAUDE.md
 
 # Demo output
 examples/*/results/
+examples/*/.venv/
+examples/*/uv.lock

@@ -8,9 +8,43 @@ reaches, then applies the change and runs the workflow so the prediction
 can be compared against what the engine really did. The prediction is made
 first, and uses nothing but the records.
 
-## Run it
+## Install once
 
-From an environment with `horus-runtime` and `horus-lineage` installed:
+```bash
+uv sync
+```
+
+If you do not have `uv`:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+This installs `horus-runtime` and the recorder from this repository, so
+the demo runs against your working copy.
+
+## Watch it run
+
+```bash
+horus run workflow.yaml
+```
+
+In a real terminal this brings up the live dashboard: a progress bar, a
+task table, and a **Dependencies tree** whose nodes change colour as each
+task moves through pending, running, completed and skipped. That tree is
+the DAG below.
+
+Two things suppress it, both worth knowing because they look like the
+feature is missing. Piping the output makes Rich fall back to a single
+summary line, and `--no-tui` turns it off outright.
+
+Run it a second time and every task turns skipped, because the outputs
+already exist and their fingerprints still match.
+
+The visual canvas you can drag stages around on is a different thing: it
+belongs to the hosted Temple Compute platform, not to `horus-runtime`.
+
+## Check the records against reality
 
 ```bash
 ./demo.sh
@@ -22,10 +56,10 @@ One scenario at a time:
 ./demo.sh 4
 ```
 
-If `horus` is not on your `PATH`, point at it directly:
+If `horus` is not on your `PATH`:
 
 ```bash
-HORUS=/path/to/.venv/bin/horus ./demo.sh
+HORUS=.venv/bin/horus ./demo.sh
 ```
 
 The demo writes records to `~/.horus-lineage` and **deletes that directory

@@ -1,0 +1,13 @@
+[project]
+name = "impact-demo"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+  "horus-runtime>=0.4.2",
+  "horus-lineage",
+]
+
+# The recorder is this repository, two directories up, so the demo runs
+# against your working copy rather than a published release.
+[tool.uv.sources]
+horus-lineage = { path = "../..", editable = true }
