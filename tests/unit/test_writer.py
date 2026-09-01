@@ -24,6 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 from horus_lineage.writer import (
+    MERGED_FILE,
     RunWriter,
     canonical,
     digest_of,
@@ -165,3 +166,66 @@ class TestTimestamps:
         A naive timestamp cannot be compared across machines.
         """
         assert datetime.fromisoformat(now()).tzinfo is not None
+
+
+MERGED_COUNT = 2
+"""Two records go in, so two lines come out."""
+
+
+class TestMergingTaskRecords:
+    """
+    Folding the parts into one JSON Lines file.
+    """
+
+    def test_the_parts_become_one_line_each(self, tmp_path: Path) -> None:
+        """
+        A reader streams the file rather than loading a whole run.
+        """
+        writer = RunWriter(tmp_path)
+        writer.write_task("prep", {"task": {"id": "prep"}})
+        writer.write_task("report", {"task": {"id": "report"}})
+
+        assert writer.merge_tasks(["prep", "report"]) == MERGED_COUNT
+        lines = (tmp_path / MERGED_FILE).read_text().splitlines()
+        assert [json.loads(line)["task"]["id"] for line in lines] == [
+            "prep",
+            "report",
+        ]
+
+    def test_the_parts_are_removed(self, tmp_path: Path) -> None:
+        """
+        Merging that left the parts behind would double the file count.
+        """
+        writer = RunWriter(tmp_path)
+        writer.write_task("prep", {"task": {"id": "prep"}})
+        writer.merge_tasks(["prep"])
+        assert [p.name for p in tmp_path.iterdir()] == [MERGED_FILE]
+
+    def test_run_json_is_left_alone(self, tmp_path: Path) -> None:
+        """
+        The plan stays its own file: it is where a reader starts.
+        """
+        writer = RunWriter(tmp_path)
+        writer.write("run.json", {"format": "horus-lineage/v1"})
+        writer.write_task("prep", {"task": {"id": "prep"}})
+        writer.merge_tasks(["prep"])
+        assert (tmp_path / "run.json").is_file()
+
+    def test_a_record_that_was_never_written_is_skipped(
+        self, tmp_path: Path
+    ) -> None:
+        """
+        A task the recorder failed on stays absent rather than
+        reappearing empty.
+        """
+        writer = RunWriter(tmp_path)
+        writer.write_task("prep", {"task": {"id": "prep"}})
+        assert writer.merge_tasks(["prep", "never_written"]) == 1
+
+    def test_merging_nothing_writes_nothing(self, tmp_path: Path) -> None:
+        """
+        A run with no records leaves no empty merged file.
+        """
+        writer = RunWriter(tmp_path)
+        assert writer.merge_tasks([]) == 0
+        assert not (tmp_path / MERGED_FILE).exists()

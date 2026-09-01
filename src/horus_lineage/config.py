@@ -32,6 +32,9 @@ ENV_ROOT = "HORUS_LINEAGE_DIR"
 ENV_DIGESTS = "HORUS_LINEAGE_DIGESTS"
 """Set to a false-ish value to record paths and sizes but no digests."""
 
+ENV_MERGE = "HORUS_LINEAGE_MERGE"
+"""Set to a true-ish value to fold task records into one file at the end."""
+
 BESIDE_THE_RUN = "@run"
 """
 ``HORUS_LINEAGE_DIR=@run`` writes records under the workflow's own run
@@ -60,6 +63,18 @@ class LineageConfig:
     digests: bool
     """Whether to record content digests (ADR 0003)."""
 
+    merge: bool
+    """
+    Whether to fold the per-task records into one JSON Lines file once
+    the run is over.
+
+    Off by default. Records are written one file per task so a run that
+    dies leaves what it finished, and so tasks running in parallel never
+    contend for the same file. Merging trades that layout for one file
+    per run, which matters at a few hundred tasks and over a network
+    filesystem, and it happens only after every task has been written.
+    """
+
     @classmethod
     def from_env(cls) -> "LineageConfig":
         """
@@ -68,7 +83,11 @@ class LineageConfig:
         """
         raw = os.environ.get(ENV_ROOT, "").strip()
         root = None if raw == BESIDE_THE_RUN else Path(raw or DEFAULT_ROOT)
-        return cls(root=root, digests=cls._flag(ENV_DIGESTS, True))
+        return cls(
+            root=root,
+            digests=cls._flag(ENV_DIGESTS, True),
+            merge=cls._flag(ENV_MERGE, False),
+        )
 
     def resolve_root(self, run_directory: Path) -> Path:
         """

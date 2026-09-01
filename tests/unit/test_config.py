@@ -27,6 +27,7 @@ from horus_lineage.config import (
     BESIDE_THE_RUN,
     DEFAULT_ROOT,
     ENV_DIGESTS,
+    ENV_MERGE,
     ENV_ROOT,
     LineageConfig,
 )
@@ -112,3 +113,27 @@ class TestDigests:
         """
         monkeypatch.setenv(ENV_DIGESTS, value)
         assert LineageConfig.from_env().digests is True
+
+
+class TestMerge:
+    """
+    Folding a run's task records into one file.
+    """
+
+    def test_it_is_off_by_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        One file per task is the crash-safe layout, so it stays the norm.
+        """
+        monkeypatch.delenv(ENV_MERGE, raising=False)
+        assert LineageConfig.from_env().merge is False
+
+    def test_it_can_be_switched_on(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        A few hundred tasks is where one file starts to be worth it.
+        """
+        monkeypatch.setenv(ENV_MERGE, "1")
+        assert LineageConfig.from_env().merge is True

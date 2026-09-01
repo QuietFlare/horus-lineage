@@ -28,6 +28,7 @@ import hashlib
 import json
 import os
 import re
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,12 @@ _UNSAFE = re.compile(r"[^A-Za-z0-9._-]")
 
 _MAX_STEM = 120
 """Leaves room for a suffix well inside every filesystem's limit."""
+
+MERGED_FILE = "records.jsonl"
+"""
+Where merged task records land: one record per line, so a reader can
+stream them without holding the run in memory.
+"""
 
 
 def now() -> str:
@@ -116,3 +123,32 @@ class RunWriter:
         Write one task record under a filename derived from *task_id*.
         """
         return self.write(safe_name(task_id), payload)
+
+    def merge_tasks(self, task_ids: Iterable[str]) -> int:
+        """
+        Fold the named task records into one JSON Lines file and remove
+        the originals. Returns how many were folded in.
+
+        Called once, after the last task, so it never races a writer.
+        Records are read back rather than kept in memory, so the merge
+        writes exactly what is on disk and a record that failed to write
+        stays absent instead of reappearing.
+
+        The parts are unlinked only once the merged file is in place, so
+        an interruption leaves either the parts or the whole, never
+        neither.
+        """
+        paths = [self.directory / safe_name(t) for t in sorted(task_ids)]
+        present = [path for path in paths if path.is_file()]
+        if not present:
+            return 0
+
+        lines = bytearray()
+        for path in present:
+            lines += canonical(json.loads(path.read_bytes()))
+            lines += b"\n"
+
+        self.write_bytes(MERGED_FILE, bytes(lines))
+        for path in present:
+            path.unlink()
+        return len(present)
