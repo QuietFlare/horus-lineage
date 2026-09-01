@@ -1,0 +1,85 @@
+kind: horus_workflow
+name: Impact probe
+
+# A diamond, so an impact question has a real answer:
+#
+#   raw.csv ---> prep ---> analyse ---> report
+#                    \              /
+#                     -> qc -------
+#
+# calibration.txt feeds analyse only, reference.txt feeds report only.
+# Changing one input should reach some tasks and not others.
+
+tasks:
+  - kind: horus_task
+    id: prep
+    name: Prepare rows
+    inputs:
+      - {id: raw, name: Raw rows, kind: file, path: data/raw.csv}
+    outputs:
+      - {id: prepared, name: Prepared, kind: file, path: prepared.json}
+    executor: {kind: shell}
+    runtime:
+      kind: python_script
+      script: scripts/prep.py
+      python: python3
+      args: --raw ${raw} --out ${prepared}
+    target: {kind: local}
+
+  - kind: horus_task
+    id: analyse
+    name: Analyse prepared rows
+    inputs:
+      - {id: prepared, name: Prepared, kind: file, path: prepared.json}
+      - {id: calibration, name: Calibration, kind: file, path: data/calibration.txt}
+    outputs:
+      - {id: analysed, name: Analysed, kind: file, path: analysed.json}
+    executor: {kind: shell}
+    runtime:
+      kind: python_script
+      script: scripts/analyse.py
+      python: python3
+      args: --prepared ${prepared} --calibration ${calibration} --out ${analysed}
+    target: {kind: local}
+
+  - kind: horus_task
+    id: qc
+    name: Quality check
+    inputs:
+      - {id: prepared, name: Prepared, kind: file, path: prepared.json}
+    outputs:
+      - {id: qc_report, name: QC report, kind: file, path: qc.json}
+    executor: {kind: shell}
+    runtime:
+      kind: python_script
+      script: scripts/qc.py
+      python: python3
+      args: --prepared ${prepared} --out ${qc_report}
+    target: {kind: local}
+
+  - kind: horus_task
+    id: report
+    name: Render report
+    inputs:
+      - {id: analysed, name: Analysed, kind: file, path: analysed.json}
+      - {id: qc_report, name: QC report, kind: file, path: qc.json}
+      - {id: reference, name: Reference, kind: file, path: data/reference.txt}
+    outputs:
+      - {id: report, name: Report, kind: file, path: report.json}
+    executor: {kind: shell}
+    runtime:
+      kind: python_script
+      script: scripts/report.py
+      python: python3
+      args: --analysed ${analysed} --qc ${qc_report} --reference ${reference} --out ${report}
+    target: {kind: local}
+
+edges:
+  - {source: prep, source_output: prepared, target: analyse, target_input: prepared}
+  - {source: prep, source_output: prepared, target: qc, target_input: prepared}
+  - {source: analyse, source_output: analysed, target: report, target_input: analysed}
+  - {source: qc, source_output: qc_report, target: report, target_input: qc_report}
+
+orchestrator_target:
+  kind: local
+  working_directory: results
