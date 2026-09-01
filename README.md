@@ -32,6 +32,7 @@ python -c "from importlib.metadata import entry_points as e; print([x.name for x
 |---|---|---|
 | `HORUS_LINEAGE_DIR` | `~/.horus-lineage` | Where run directories are written. Set to `@run` to write under the workflow's own run directory, or to any absolute path. |
 | `HORUS_LINEAGE_DIGESTS` | on | Set to `0`, `false`, `no` or `off` to record paths and sizes without hashing. Records written this way carry no edges. |
+| `HORUS_LINEAGE_MERGE` | off | Set to `1` to fold the per-task records into a single `records.jsonl` once the run ends. Worth it at a few hundred tasks, or over a network filesystem. |
 
 Writes are local only. Point `HORUS_LINEAGE_DIR` at a local filesystem and
 sync afterwards. A network mount or object store inside a middleware can
@@ -51,6 +52,28 @@ One directory per run, moved as a unit:
 
 Task filenames are sanitized and suffixed with a short digest of the
 original id, so map clones and ids containing separators stay distinct.
+
+One file per task is deliberate. Each is written the moment that task
+finishes, so a run that dies at task 9 of 200 keeps the 8 that
+completed, and tasks running in parallel never contend for one file.
+Records are around 2 KB each, so 183 tasks is 185 files and roughly
+440 KB.
+
+With `HORUS_LINEAGE_MERGE=1` the parts are folded into one
+`records.jsonl`, one record per line, after the last task has been
+written:
+
+```
+~/.horus-lineage/<run-id>/
+  run.json
+  definition.json
+  records.jsonl
+```
+
+The per-task writes still happen during the run, so the crash-safe
+behaviour is unchanged: a run killed before it finishes keeps its loose
+files. `run.json` and `definition.json` stay separate, since they are
+where a reader starts.
 
 ### run.json
 
@@ -122,9 +145,10 @@ output is external to the run.
 reader's graph and never cross a run boundary. Nothing links a re-run to
 its predecessor, by design.
 
-**`incomplete` lists what a record could not capture**, for example
-`["fingerprint"]` or `["digests_disabled"]`. Treat those records as
-partial rather than clean.
+**`incomplete` lists what a record could not capture.** `digests_disabled`
+means hashing was off for the run, `digests_partial` means it was on and
+some artifact still has no digest, which is an edge you will not see.
+Treat those records as partial rather than clean.
 
 ## Behaviour
 

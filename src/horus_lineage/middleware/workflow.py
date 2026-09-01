@@ -31,6 +31,7 @@ from typing import Any, TypeVar
 
 from horus_runtime.core.workflow.base import BaseWorkflow
 from horus_runtime.core.workflow.status import WorkflowStatus
+from horus_runtime.logging import horus_logger
 from horus_runtime.middleware.workflow import (
     WorkflowMiddleware,
     WorkflowMiddlewareContext,
@@ -38,9 +39,16 @@ from horus_runtime.middleware.workflow import (
 
 from horus_lineage import RECORD_FORMAT
 from horus_lineage.config import LineageConfig
+from horus_lineage.i18n import tr as _
 from horus_lineage.observer import observe
 from horus_lineage.record import code_files, project_definition
-from horus_lineage.session import LineageSession, begin, end, mint_run_id
+from horus_lineage.session import (
+    LineageSession,
+    begin,
+    current,
+    end,
+    mint_run_id,
+)
 from horus_lineage.writer import RunWriter, digest_of, now
 
 R = TypeVar("R")
@@ -104,8 +112,25 @@ class LineageWorkflowMiddleware(WorkflowMiddleware):
         Close the record out and drop the session, whatever happened.
         """
         await observe("finish run.json", lambda: self._close(context, outcome))
+        # Read the session before dropping it: the merge has to know
+        # which task ids were actually recorded.
+        session = current()
+        if session is not None and session.config.merge:
+            await observe("merge task records", lambda: self._merge(session))
         if token is not None:
             end(token)
+
+    async def _merge(self, session: LineageSession) -> None:
+        """
+        Fold the per-task records into one file, now every task is done.
+        """
+        if self._writer is None:
+            return
+        folded = self._writer.merge_tasks(session.recorded)
+        horus_logger.log.debug(
+            _("horus-lineage merged %(count)s task records")
+            % {"count": folded}
+        )
 
     async def _open(self, workflow: BaseWorkflow) -> Any:
         """
