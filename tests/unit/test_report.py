@@ -206,7 +206,8 @@ class TestTrustBoundary:
         """
         Withdraw the file and this is what is in question.
         """
-        boundary = page.split("Taken from outside")[1].split("<h2>")[0]
+        after = page.split("Taken from outside", maxsplit=1)[1]
+        boundary = after.split("<h2>", maxsplit=1)[0]
         assert "prep" in boundary
 
     def test_a_run_with_no_outside_inputs_omits_the_section(self) -> None:
