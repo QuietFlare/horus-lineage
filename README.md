@@ -6,6 +6,12 @@ task, one per run, joined by content digest.
 Records are written for every task, including skipped and failed ones, and
 are safe to share (no credentials, no command output, no file contents).
 
+`horus-lineage report` turns a run directory into a single self-contained
+page: what the run produced, what it took from outside, and what the result
+rests on.
+
+![A lineage report: the derivation drawing, what came from outside the run, and the chain behind the final result](docs/report.png)
+
 ## Install
 
 ```bash
