@@ -59,6 +59,12 @@ def task(
     }
 
 
+ARTIFACTS = 4
+"""One output per task in the diamond."""
+
+EXECUTED = 3
+"""qc was reused from cache, the other three ran."""
+
 RAW = "a" * 64
 PREPARED = "b" * 64
 ANALYSED = "c" * 64
@@ -183,6 +189,9 @@ class TestExternalInputs:
     """
 
     def test_each_outside_artifact_appears_once(self) -> None:
+        """
+        One file read by three tasks is one trust decision, not three.
+        """
         edges = graph.derivation(RECORDS, DEFINITION)
         outside = graph.external_inputs(edges)
         assert [i["name"] for i in outside] == ["calibration.txt", "raw.csv"]
@@ -206,8 +215,11 @@ class TestAccountability:
     """
 
     def test_a_fully_digested_run_accounts_for_everything(self) -> None:
+        """
+        Nothing to disclaim when every output carries a digest.
+        """
         acct = graph.accountability(RECORDS)
-        assert acct["total"] == acct["digested"] == 4
+        assert acct["total"] == acct["digested"] == ARTIFACTS
         assert acct["unhashed"] == []
 
     def test_an_undigested_output_is_named(self) -> None:
@@ -227,13 +239,16 @@ class TestLayers:
     """
 
     def test_sources_come_first_and_joins_come_last(self) -> None:
+        """
+        Layer order is what makes the drawing readable.
+        """
         layered = graph.layers(RECORDS, graph.derivation(RECORDS, DEFINITION))
         assert layered == [["prep"], ["analyse", "qc"], ["report"]]
 
     def test_a_task_sits_below_the_deepest_thing_it_reads(self) -> None:
         """
-        report reads qc (layer 1) and analyse (layer 1), so it is 2, not
-        1, even though one of its inputs was ready earlier.
+        The report task reads qc (layer 1) and analyse (layer 1), so it
+        is 2, not 1, even though one input was ready earlier.
         """
         layered = graph.layers(RECORDS, graph.derivation(RECORDS, DEFINITION))
         assert layered[-1] == ["report"]
@@ -247,6 +262,9 @@ class TestLayers:
         assert placed == {"prep", "analyse", "qc", "report"}
 
     def test_unrelated_tasks_share_the_first_layer(self) -> None:
+        """
+        With no edges between them, neither waits on the other.
+        """
         records = [task("a", [], []), task("b", [], [])]
         assert graph.layers(records, []) == [["a", "b"]]
 
@@ -257,6 +275,9 @@ class TestTrace:
     """
 
     def test_it_walks_back_to_the_outside(self) -> None:
+        """
+        The walk ends at the trust boundary, not at an arbitrary depth.
+        """
         edges = graph.derivation(RECORDS, DEFINITION)
         chain = graph.trace("report", edges)
         assert chain[0] == ["analyse", "qc"]
@@ -271,6 +292,9 @@ class TestTrace:
         assert len(graph.trace("report", edges, limit=1)) == 1
 
     def test_a_task_with_no_inputs_has_no_chain(self) -> None:
+        """
+        Nothing preceded it, so there is no chain to state.
+        """
         assert graph.trace("prep", []) == []
 
 
@@ -280,10 +304,16 @@ class TestTerminals:
     """
 
     def test_the_final_output_is_terminal(self) -> None:
+        """
+        In a diamond only the join is terminal.
+        """
         edges = graph.derivation(RECORDS, DEFINITION)
         assert graph.terminals(RECORDS, edges) == ["report"]
 
     def test_a_run_where_nothing_is_consumed_is_all_terminal(self) -> None:
+        """
+        Every task is an endpoint when no task reads another.
+        """
         records = [task("a", [], []), task("b", [], [])]
         assert graph.terminals(records, []) == ["a", "b"]
 
@@ -294,6 +324,9 @@ class TestReuse:
     """
 
     def test_it_counts_each_status(self) -> None:
+        """
+        Executed against reused is what the drawing colours.
+        """
         counted = graph.reuse(RECORDS)
-        assert counted["completed"] == 3
+        assert counted["completed"] == EXECUTED
         assert counted["skipped"] == 1

@@ -114,6 +114,11 @@ select = [
 ]
 extend-select = ["T201"]  # Prevent use of print()
 
+# U+2212 is the real minus, paired with the "+" on the same fold marker.
+# It is written literally because the CSS escape "\2212" would be read as
+# an octal escape by Python before CSS ever sees it.
+allowed-confusables = ["−"]
+
 ignore = [
   "E203",  # Whitespace before ':', conflicts with formatter
   "D104",  # Missing docstring in __init__ (often redundant)

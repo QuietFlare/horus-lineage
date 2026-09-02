@@ -33,6 +33,12 @@ import pytest
 from horus_lineage import report
 from tests.unit.test_graph import DEFINITION, RECORDS
 
+BRAND_FACES = 3
+"""Inter regular and semibold, plus Inter Tight for display."""
+
+VISIBLE_WORD_BUDGET = 200
+"""What fits on a first screen before anything is expanded."""
+
 PLAN: dict[str, Any] = {
     "format": "horus-lineage/v1",
     "run": "d79086aa31e44bdb",
@@ -74,6 +80,9 @@ class TestSelfContained:
         assert "<script" not in page.lower()
 
     def test_it_fetches_nothing(self, page: str) -> None:
+        """
+        An offline reader must see the same page as an online one.
+        """
         assert "http://" not in page
         assert "https://" not in page
         assert "<link" not in page.lower()
@@ -83,7 +92,7 @@ class TestSelfContained:
         Named-only would degrade to system sans wherever Inter is not
         installed, which is most machines.
         """
-        assert page.count("@font-face") == 3
+        assert page.count("@font-face") == BRAND_FACES
         assert "data:font/woff2;base64" in page
 
 
@@ -93,6 +102,9 @@ class TestReproducible:
     """
 
     def test_the_same_run_renders_the_same_bytes(self) -> None:
+        """
+        Byte equality is what makes two pages comparable by diff.
+        """
         assert report.render(PLAN, RECORDS) == report.render(PLAN, RECORDS)
 
     def test_no_generation_time_is_stamped_in(self, page: str) -> None:
@@ -111,12 +123,21 @@ class TestWhatItLeadsWith:
     def test_it_states_what_can_be_identified_by_content(
         self, page: str
     ) -> None:
+        """
+        Accounting leads, because it bounds every other claim.
+        """
         assert "4 of 4 artifacts are identified by content" in page
 
     def test_it_states_what_came_from_outside(self, page: str) -> None:
+        """
+        What the run did not make is what it cannot vouch for.
+        """
         assert "2 came from outside the run" in page
 
     def test_it_states_how_deep_the_chain_is(self, page: str) -> None:
+        """
+        Depth is how far a correction upstream would travel.
+        """
         assert "the chain is 3 deep" in page
 
     def test_it_reports_the_runs_own_elapsed_time(self, page: str) -> None:
@@ -126,6 +147,9 @@ class TestWhatItLeadsWith:
         assert "2.1 s" in page
 
     def test_an_unfinished_run_reports_no_time(self) -> None:
+        """
+        Without an end there is no elapsed time to report.
+        """
         plan = dict(PLAN, finished_at=None)
         assert report.elapsed(plan) is None
 
@@ -136,15 +160,24 @@ class TestDerivationDrawing:
     """
 
     def test_every_task_appears_as_a_node(self, page: str) -> None:
+        """
+        A task missing from the drawing is worse than an ugly drawing.
+        """
         drawing = re.search(r"<svg.*?</svg>", page, re.S)
         assert drawing is not None
         for task in ("prep", "analyse", "qc", "report"):
             assert task in drawing.group(0)
 
     def test_outside_inputs_get_their_own_column(self, page: str) -> None:
+        """
+        The boundary is visible in the shape, not only in the prose.
+        """
         assert "from outside" in page
 
     def test_stages_are_labelled_in_order(self, page: str) -> None:
+        """
+        The columns are meaningless unless they say what they are.
+        """
         assert "stage 1" in page
         assert "stage 3" in page
 
@@ -162,6 +195,9 @@ class TestTrustBoundary:
     """
 
     def test_outside_artifacts_are_listed(self, page: str) -> None:
+        """
+        Named, so a withdrawal upstream can be matched against them.
+        """
         assert "Taken from outside" in page
         assert "raw.csv" in page
         assert "calibration.txt" in page
@@ -174,6 +210,9 @@ class TestTrustBoundary:
         assert "prep" in boundary
 
     def test_a_run_with_no_outside_inputs_omits_the_section(self) -> None:
+        """
+        An empty trust boundary is not a finding worth a heading.
+        """
         records = [
             {
                 "task": {"id": "solo", "status": "completed"},
@@ -190,6 +229,9 @@ class TestHonesty:
     """
 
     def test_an_undigested_artifact_is_named(self) -> None:
+        """
+        Naming it is the difference between a gap and a silent one.
+        """
         records = [
             {
                 "task": {"id": "prep", "status": "completed"},
@@ -204,9 +246,15 @@ class TestHonesty:
     def test_a_fully_digested_run_says_nothing_about_gaps(
         self, page: str
     ) -> None:
+        """
+        A disclaimer with nothing behind it teaches readers to skip them.
+        """
         assert "have no digest" not in page
 
     def test_a_run_that_died_partway_says_so(self) -> None:
+        """
+        A partial run read as complete is the costliest misreading here.
+        """
         page = report.render(dict(PLAN, finished_at=None), RECORDS)
         assert "died partway" in page
 
@@ -218,6 +266,9 @@ class TestHonesty:
         assert "cannot see these" in page
 
     def test_the_page_says_it_is_not_the_record(self, page: str) -> None:
+        """
+        The page is a projection; the records are the evidence.
+        """
         assert "the run directory is the record" in page
 
 
@@ -227,9 +278,15 @@ class TestDetailIsFolded:
     """
 
     def test_the_task_list_is_behind_a_summary(self, page: str) -> None:
+        """
+        The count belongs in the summary so it reads without expanding.
+        """
         assert "<summary>All 4 tasks</summary>" in page
 
     def test_artifacts_and_code_are_folded(self, page: str) -> None:
+        """
+        Detail stays reachable without crowding the first screen.
+        """
         folds = re.findall(r"<summary>([^<]+)</summary>", page)
         assert any("artifacts produced" in f for f in folds)
         assert any("code files" in f for f in folds)
@@ -243,7 +300,7 @@ class TestDetailIsFolded:
         visible = re.sub(r"<details>.*?</details>", "", visible, flags=re.S)
         visible = re.sub(r"<svg.*?</svg>", "", visible, flags=re.S)
         words = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", visible)).split()
-        assert len(words) < 200
+        assert len(words) < VISIBLE_WORD_BUDGET
 
 
 class TestLoading:
@@ -264,6 +321,9 @@ class TestLoading:
                 (directory / name).write_text(json.dumps(record))
 
     def test_the_per_task_layout_loads(self, tmp_path: Path) -> None:
+        """
+        One file per task is what the recorder writes by default.
+        """
         self._write(tmp_path, merged=False)
         plan, records = report.load(tmp_path)
         assert plan["run"] == PLAN["run"]
@@ -291,6 +351,9 @@ class TestLoading:
     def test_a_directory_without_a_plan_is_refused(
         self, tmp_path: Path
     ) -> None:
+        """
+        Without run.json there is no run to report on.
+        """
         with pytest.raises(SystemExit):
             report.load(tmp_path)
 
@@ -301,6 +364,9 @@ class TestCommand:
     """
 
     def test_it_writes_the_page(self, tmp_path: Path) -> None:
+        """
+        The doctype is what makes the output a page and not a fragment.
+        """
         run_dir = tmp_path / "run"
         run_dir.mkdir()
         TestLoading()._write(run_dir, merged=False)
@@ -311,6 +377,9 @@ class TestCommand:
     def test_it_writes_to_stdout(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        """
+        So the page can be piped without a temporary file.
+        """
         run_dir = tmp_path / "run"
         run_dir.mkdir()
         TestLoading()._write(run_dir, merged=False)
