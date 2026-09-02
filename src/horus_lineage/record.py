@@ -102,16 +102,41 @@ def _project_task(task: "BaseTask") -> dict[str, Any]:
     }
 
 
+def labels_of(artifact: "BaseArtifact") -> dict[str, str]:
+    """
+    An artifact's domain labels, or empty on an engine without them.
+
+    Read defensively: ``BaseArtifact.labels`` arrived in horus-runtime
+    after this recorder, and a record written against an older engine
+    should say "no labels" rather than fail.
+
+    Only string keys and values survive. A reader groups and indexes on
+    these, so a value it cannot compare is worse than an absent one.
+    """
+    raw = getattr(artifact, "labels", None)
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        key: value
+        for key, value in raw.items()
+        if isinstance(key, str) and isinstance(value, str)
+    }
+
+
 def _declared(artifact: "BaseArtifact") -> dict[str, Any]:
     """
     An artifact as the workflow declared it, before any run resolved it.
     """
     declared = artifact.declared_path
-    return {
+    projected: dict[str, Any] = {
         "id": artifact.id,
         "kind": artifact.kind,
         "path": str(declared) if declared is not None else str(artifact.path),
     }
+    labels = labels_of(artifact)
+    if labels:
+        projected["labels"] = labels
+    return projected
 
 
 def environment(task: "BaseTask") -> dict[str, Any]:
@@ -355,6 +380,12 @@ class ArtifactReader:
         """
         path = self.target.path_on_target(artifact)
         entry: dict[str, Any] = {"id": artifact.id, "path": path}
+
+        # What this artifact is, in the workflow author's own vocabulary.
+        # Omitted when empty so an unlabelled run reads exactly as before.
+        labels = labels_of(artifact)
+        if labels:
+            entry["labels"] = labels
 
         size = await self._size(path)
         if size is not None:

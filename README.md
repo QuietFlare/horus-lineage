@@ -118,7 +118,8 @@ exist are the lineage of how far it got.
     "config_sha256": "a26537d3..."
   },
   "code": [{"path": "scripts/analyse.py", "size": 481, "sha256": "b3f01889...", "role": "script"}],
-  "inputs": [{"id": "prepared", "path": "...", "size": 336, "sha256": "b860bf6c..."}],
+  "inputs": [{"id": "prepared", "path": "...", "size": 336, "sha256": "b860bf6c...",
+              "labels": {"subject": "batch_017"}}],
   "outputs": [{"id": "analysed", "path": "...", "size": 33, "sha256": "314ffd24..."}],
   "incomplete": []
 }
@@ -140,6 +141,11 @@ byte-identical to its input, which reads as a self-edge.
 detect that an artifact is unchanged, and to confirm a declared edge
 actually carried the bytes it claims. An input digest matching no recorded
 output is external to the run.
+
+**`labels` carry the domain vocabulary.** A workflow author writes
+`labels: {subject: batch_017}` on an artifact and it reaches the record
+verbatim, so a reader can group by subject without parsing filenames.
+Absent when an artifact has none.
 
 **Group runs by `definition_sha256`.** Run ids namespace nodes within a
 reader's graph and never cross a run boundary. Nothing links a re-run to
@@ -171,8 +177,13 @@ Treat those records as partial rather than clean.
   listing is unavailable or too expensive.
 - **Folder artifacts have no digest.** The engine's `digest` returns `None`
   for directories, so `sha256` is absent and those artifacts do not join.
-- **`source` is currently always `null`.** `BaseWorkflow.from_yaml` retains
-  the workflow file's directory but not its path.
+- **`source` is currently always `null`.** `BaseWorkflow.from_yaml` kept the
+  workflow file's directory but not its path. Fixed upstream in
+  temple-compute/horus-runtime#184 and merged, so this starts working on its
+  own once a release carries it, with no change here.
+- **`labels` need a release too.** `BaseArtifact.labels` is approved upstream
+  in temple-compute/horus-runtime#181 but not yet released, so the field is
+  read defensively and every artifact reports none until then.
 - **Code files are found heuristically**, by scanning each runtime's own
   fields for values resolving to a local file with a code suffix.
 - **The engine does not invalidate on script edits.** A runtime holds its

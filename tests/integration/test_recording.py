@@ -32,6 +32,8 @@ import pytest
 from horus_runtime.core.task.exceptions import TaskExecutionError
 from horus_runtime.core.workflow.base import BaseWorkflow
 
+import horus_lineage.record as record_module
+
 WORKFLOW = """
 kind: horus_workflow
 name: Recording probe
@@ -414,3 +416,46 @@ class TestPartialDigests:
         """
         await run_workflow(project)
         assert record(runs(records_dir)[0], "prep")["incomplete"] == []
+
+
+@pytest.mark.usefixtures("horus_context", "init_registry")
+class TestLabels:
+    """
+    Domain metadata, carried from the workflow into the records.
+
+    This is what lets a reader answer "everything derived from subject X"
+    without knowing anything about the domain.
+    """
+
+    async def test_labels_reach_the_record(
+        self, project: Path, records_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        An artifact labelled in the workflow is labelled in the record.
+
+        Patched rather than declared in YAML because BaseArtifact.labels
+        is newer than the horus-runtime this pins. Drop the patch once
+        the dependency moves.
+        """
+        monkeypatch.setattr(
+            record_module,
+            "labels_of",
+            lambda artifact: (
+                {"subject": "batch_017"} if artifact.id == "prepared" else {}
+            ),
+        )
+        await run_workflow(project)
+
+        outputs = record(runs(records_dir)[0], "prep")["outputs"]
+        assert outputs[0]["labels"] == {"subject": "batch_017"}
+
+    async def test_an_unlabelled_run_gains_no_empty_keys(
+        self, project: Path, records_dir: Path
+    ) -> None:
+        """
+        Records of a workflow that labels nothing read exactly as before.
+        """
+        await run_workflow(project)
+        prep = record(runs(records_dir)[0], "prep")
+        assert "labels" not in prep["outputs"][0]
+        assert "labels" not in prep["inputs"][0]
