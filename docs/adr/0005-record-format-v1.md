@@ -100,7 +100,8 @@ know about are dropped rather than passed through.
   ],
   "inputs": [
     {"id": "measurements", "path": "/data/run1/batch_017.csv",
-     "size": 812345, "sha256": "9f31a2..."},
+     "size": 812345, "sha256": "9f31a2...",
+     "labels": {"subject": "batch_017", "role": "measurement"}},
     {"id": "calibration", "path": "/data/refs/calibration.dat",
      "size": 40961, "sha256": "1d4c99..."}
   ],
@@ -134,7 +135,20 @@ Field notes:
                        artifact cannot be hashed
     size               cheap secondary identity for systems without
                        digests
+    labels             the artifact's own metadata, verbatim, omitted
+                       when it has none
     incomplete         what this record failed to capture, see below
+
+`labels` is what a reader groups by without knowing the domain. A
+workflow author writes `labels: {subject: batch_017}` on an artifact and
+a reader can then answer "everything derived from subject batch_017"
+with a lookup, rather than parsing filenames or consulting a sheet that
+describes a different vocabulary per field of study.
+
+Recorded verbatim and never interpreted. Only string keys and values are
+kept, because a reader indexes on them and a value it cannot compare is
+worse than an absent one. Absent entirely when an artifact has none, so
+an unlabelled run reads exactly as it did before the field existed.
 
 The `environment` digests are hashes only, never the model dumps, for the
 same reason `definition.json` is a projection: a third-party executor may
