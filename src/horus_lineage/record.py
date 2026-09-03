@@ -104,11 +104,12 @@ def _project_task(task: "BaseTask") -> dict[str, Any]:
 
 def labels_of(artifact: "BaseArtifact") -> dict[str, str]:
     """
-    An artifact's domain labels, or empty on an engine without them.
+    An artifact's domain labels, empty when it carries none.
 
-    Read defensively: ``BaseArtifact.labels`` arrived in horus-runtime
-    after this recorder, and a record written against an older engine
-    should say "no labels" rather than fail.
+    Still read through ``getattr`` although the pin now requires an
+    engine that has the field. A third-party artifact type need not
+    inherit it, and a recorder that raises on a missing attribute would
+    break the run it is only observing (ADR 0004).
 
     Only string keys and values survive. A reader groups and indexes on
     these, so a value it cannot compare is worse than an absent one.

@@ -183,28 +183,25 @@ Treat those records as partial rather than clean.
   listing is unavailable or too expensive.
 - **Folder artifacts have no digest.** The engine's `digest` returns `None`
   for directories, so `sha256` is absent and those artifacts do not join.
-- **`source` is currently always `null`.** `BaseWorkflow.from_yaml` kept the
-  workflow file's directory but not its path. Fixed upstream in
-  temple-compute/horus-runtime#184 and merged, so this starts working on its
-  own once a release carries it, with no change here.
-- **`labels` need a release too.** `BaseArtifact.labels` is approved upstream
-  in temple-compute/horus-runtime#181 but not yet released, so the field is
-  read defensively and every artifact reports none until then.
 - **Code files are found heuristically**, by scanning each runtime's own
-  fields for values resolving to a local file with a code suffix.
+  fields for values resolving to a local file with a code suffix. This
+  misses files an executor owns, such as a conda requirements file.
+  `BaseRuntime.local_files()` and `BaseExecutor.local_files()` landed in
+  horus-runtime 0.5.0 and should replace the scan.
 - **Cost signals are relative.** `target` is a fact, but duration (once
   recorded) is wall clock, which varies severalfold for identical work with
   cluster load and queue wait, and `ResourceRequest` fields are advisory
   hints a target may ignore. Use them to rank changes against each other,
   not to state absolute cost or carbon. See
   [`docs/adr/0008`](docs/adr/0008-cost-signals-are-relative.md).
-- **The engine does not invalidate on script edits.** A runtime holds its
-  script as a path, so editing the file changes neither `config_sha256` nor
-  any input digest, and the task will skip with stale code. The per-task
-  `code` digests detect this, which means a record can report a task as
-  affected that Horus will not re-run without clearing its cache. A
-  templated script (`script: ${artifact}`) is an ordinary input and
-  invalidates correctly.
+- **The affected set is an upper bound.** A task re-runs only when its own
+  inputs or config changed, so a task producing identical bytes from
+  changed inputs halts the cascade. Walking the full downstream closure
+  overstates what will actually re-run.
+- **Environment drift is invisible.** An image tag re-pushed under the same
+  name, or a package upgraded on the target host, is byte-identical in the
+  executor's model. The engine cannot see it and neither can a record. Pin
+  images by digest.
 
 ## Development
 
