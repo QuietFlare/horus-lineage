@@ -1,5 +1,10 @@
 # horus-lineage
 
+[![Python 3.13+](https://img.shields.io/badge/python-3.13%2B-blue.svg)](https://www.python.org/downloads/)
+[![horus-runtime 0.5.0+](https://img.shields.io/badge/horus--runtime-0.5.0%2B-blue.svg)](https://github.com/temple-compute/horus-runtime)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+[![Security](https://github.com/QuietFlare/horus-lineage/actions/workflows/security.yml/badge.svg)](https://github.com/QuietFlare/horus-lineage/actions/workflows/security.yml)
+
 A Horus runtime plugin that records what each run did: one JSON record per
 task, one per run, joined by content digest.
 
@@ -17,8 +22,10 @@ rests on. It is off by default, see `HORUS_LINEAGE_REPORT` below.
 ## Install
 
 ```bash
-uv pip install horus-lineage
+uv pip install git+https://github.com/QuietFlare/horus-lineage@v0.1.0
 ```
+
+Not on PyPI yet. Drop the `@v0.1.0` for the latest main.
 
 Registration is automatic. The plugin declares four `horus.middleware.*`
 entry points, which Horus loads at boot, so there is nothing to enable and
