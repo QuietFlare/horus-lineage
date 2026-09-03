@@ -316,6 +316,17 @@ class TestShareability:
         found = violations(write(tmp_path, plan=plan))
         assert any("ISO 8601" in v for v in found)
 
+    def test_a_naive_task_timestamp_is_caught(self, tmp_path: Path) -> None:
+        """
+        Task stamps are optional, and checked when present.
+        """
+        record = json.loads(json.dumps(RECORD))
+        record["task"]["finished_at"] = "2026-09-01T14:22:31"
+        found = violations(
+            write(tmp_path, records={"prep.abcd1234.json": record})
+        )
+        assert any("task.finished_at" in v for v in found)
+
 
 class TestAnUnfinishedRun:
     """

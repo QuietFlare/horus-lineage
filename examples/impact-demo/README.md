@@ -100,17 +100,15 @@ data/reference.txt ────> report
 | 1 | `calibration.txt` | Reaches `analyse` and `report`, not the parallel `qc` branch |
 | 2 | `raw.csv` | The root input, so everything is downstream |
 | 3 | `reference.txt` | Feeds only the last task, so nothing else moves |
-| 4 | `scripts/qc.py` | A script, which the engine's fingerprint cannot see |
+| 4 | `scripts/qc.py` | A script, found through each task's `code` digests |
 
-Scenarios 1 to 3 match the engine exactly.
+All four match the engine exactly on horus-runtime 0.5.0 or later.
 
-Scenario 4 is the interesting one. The engine holds a runtime's script as
-a path rather than as bytes, and the script is not a declared input, so
-editing it changes neither `config_sha256` nor any input digest. The task
-skips with stale code and the workflow reports success. The records name
-the affected tasks anyway, and say `engine detects it: False`, which is
-the caveat a reader has to surface: these tasks are affected, and Horus
-will not recompute them without its cache being cleared.
+Scenario 4 depends on the engine version. A runtime holds its script as
+a path, so an edit changes neither `config_sha256` nor any input digest.
+Since 0.5.0 the engine digests local files into the fingerprint and the
+task re-runs. On an older engine it skips with stale code, and the
+records are the only thing that names the affected tasks.
 
 ## impact.py
 

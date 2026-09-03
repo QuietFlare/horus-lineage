@@ -35,6 +35,9 @@ ENV_DIGESTS = "HORUS_LINEAGE_DIGESTS"
 ENV_MERGE = "HORUS_LINEAGE_MERGE"
 """Set to a true-ish value to fold task records into one file at the end."""
 
+ENV_COMMAND = "HORUS_LINEAGE_COMMAND"
+"""Set to a false-ish value to leave the resolved command out of records."""
+
 BESIDE_THE_RUN = "@run"
 """
 ``HORUS_LINEAGE_DIR=@run`` writes records under the workflow's own run
@@ -75,6 +78,9 @@ class LineageConfig:
     filesystem, and it happens only after every task has been written.
     """
 
+    command: bool = True
+    """Whether to record each task's resolved command line."""
+
     @classmethod
     def from_env(cls) -> "LineageConfig":
         """
@@ -87,6 +93,7 @@ class LineageConfig:
             root=root,
             digests=cls._flag(ENV_DIGESTS, True),
             merge=cls._flag(ENV_MERGE, False),
+            command=cls._flag(ENV_COMMAND, True),
         )
 
     def resolve_root(self, run_directory: Path) -> Path:

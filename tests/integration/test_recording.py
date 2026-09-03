@@ -23,6 +23,7 @@ records back, so the assertions are about files on disk rather than about
 the recorder's internals.
 """
 
+import asyncio
 import hashlib
 import json
 from pathlib import Path
@@ -32,8 +33,8 @@ import pytest
 from horus_runtime.core.task.exceptions import TaskExecutionError
 from horus_runtime.core.workflow.base import BaseWorkflow
 
-import horus_lineage.record as record_module
 from horus_lineage import conformance
+from horus_lineage.config import ENV_COMMAND
 
 WORKFLOW = """
 kind: horus_workflow
@@ -461,21 +462,20 @@ class TestLabels:
     """
 
     async def test_labels_reach_the_record(
-        self, project: Path, records_dir: Path, monkeypatch: pytest.MonkeyPatch
+        self, project: Path, records_dir: Path
     ) -> None:
         """
         An artifact labelled in the workflow is labelled in the record.
-
-        Patched rather than declared in YAML because BaseArtifact.labels
-        is newer than the horus-runtime this pins. Drop the patch once
-        the dependency moves.
         """
-        monkeypatch.setattr(
-            record_module,
-            "labels_of",
-            lambda artifact: (
-                {"subject": "batch_017"} if artifact.id == "prepared" else {}
-            ),
+        path = project / "workflow.yaml"
+        path.write_text(
+            path.read_text().replace(
+                "- {id: prepared, name: Prepared, kind: file, "
+                "path: prepared.txt}",
+                "- {id: prepared, name: Prepared, kind: file, "
+                "path: prepared.txt, labels: {subject: batch_017}}",
+                1,
+            )
         )
         await run_workflow(project)
 
@@ -492,3 +492,79 @@ class TestLabels:
         prep = record(runs(records_dir)[0], "prep")
         assert "labels" not in prep["outputs"][0]
         assert "labels" not in prep["inputs"][0]
+
+
+@pytest.mark.usefixtures("horus_context", "init_registry")
+class TestTiming:
+    """
+    The engine's own task stamps, carried into the record.
+    """
+
+    async def test_an_executed_task_is_stamped(
+        self, project: Path, records_dir: Path
+    ) -> None:
+        """
+        Duration is the difference, wall clock (ADR 0008).
+        """
+        await run_workflow(project)
+        task = record(runs(records_dir)[0], "prep")["task"]
+        assert task["started_at"] is not None
+        assert task["finished_at"] >= task["started_at"]
+
+    async def test_a_skipped_task_is_not(
+        self, project: Path, records_dir: Path
+    ) -> None:
+        """
+        Nothing ran, so there is nothing to time.
+        """
+        await run_workflow(project)
+        await run_workflow(project)
+        task = record(runs(records_dir)[1], "prep")["task"]
+        assert task["started_at"] is None
+        assert task["finished_at"] is None
+
+
+@pytest.mark.usefixtures("horus_context", "init_registry")
+class TestCommandSwitchedOff:
+    """
+    A workflow that passes a secret as an argument can opt out.
+    """
+
+    async def test_the_command_is_null(
+        self, project: Path, records_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        Everything else in the record is unchanged.
+        """
+        monkeypatch.setenv(ENV_COMMAND, "0")
+        await run_workflow(project)
+        prep = record(runs(records_dir)[0], "prep")
+        assert prep["command"] is None
+        assert prep["outputs"][0]["sha256"]
+
+
+@pytest.mark.usefixtures("horus_context", "init_registry")
+class TestCancellation:
+    """
+    A run torn down partway still leaves what it knew.
+    """
+
+    async def test_a_cancelled_task_and_run_are_recorded_as_such(
+        self, project: Path, records_dir: Path
+    ) -> None:
+        """
+        Cancellation propagates (ADR 0004) and the status is derived in
+        wrap (ADR 0007), so both records close as canceled.
+        """
+        (project / "prep.py").write_text("import time\ntime.sleep(30)\n")
+        workflow = BaseWorkflow.from_yaml(project / "workflow.yaml")
+        runner = asyncio.create_task(workflow.run(trigger_id="prep"))
+        await asyncio.sleep(1.0)
+        runner.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await runner
+
+        run = runs(records_dir)[0]
+        assert record(run, "prep")["task"]["status"] == "canceled"
+        assert plan(run)["status"] == "canceled"
+        assert plan(run)["finished_at"] is not None

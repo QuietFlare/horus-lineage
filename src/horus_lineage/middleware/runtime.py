@@ -61,6 +61,10 @@ class LineageRuntimeMiddleware(RuntimeMiddleware):
         """
         result = await call_next()
         session = current()
-        if session is not None and isinstance(result, str):
+        if (
+            session is not None
+            and session.config.command
+            and isinstance(result, str)
+        ):
             session.commands[context.task.id] = result[:MAX_COMMAND]
         return result

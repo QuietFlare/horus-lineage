@@ -474,7 +474,7 @@ def gaps(plan: Record, records: list[Record]) -> str:
 
 
 def code(plan: Record) -> str:
-    """The scripts this run executed, digested. The engine sees none."""
+    """The local files the run's tasks read, digested."""
     files = plan.get("code") or []
     if not files:
         return ""
@@ -488,10 +488,10 @@ def code(plan: Record) -> str:
     )
     return (
         f"<details><summary>{len(files)} code files</summary>"
-        '<div class="panel"><p class="note">The engine\'s own cache '
-        "cannot see these: a runtime holds its script as a path, not as "
-        "bytes. These digests are the only record that the code was what "
-        "it was.</p>"
+        '<div class="panel"><p class="note">Scripts and environment '
+        "files read from the launch host. The engine folds them into its "
+        "fingerprint, so an edit re-runs the task. These digests name "
+        "which file changed.</p>"
         '<div class="tablewrap"><table><thead><tr><th>File</th>'
         "<th>Bytes</th><th>sha256</th></tr></thead>"
         f"<tbody>{rows}</tbody></table></div></div></details>"

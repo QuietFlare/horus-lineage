@@ -3,8 +3,10 @@
 A Horus runtime plugin that records what each run did: one JSON record per
 task, one per run, joined by content digest.
 
-Records are written for every task, including skipped and failed ones, and
-are safe to share (no credentials, no command output, no file contents).
+Records are written for every task, including skipped and failed ones.
+They hold digests, paths and the resolved command line, never command
+output, file contents, or the executor and target settings that could
+carry credentials. See [Sharing](#sharing) for the two verbatim fields.
 
 `horus-lineage report` turns a run directory into a single self-contained
 page: what the run produced, what it took from outside, and what the result
@@ -39,6 +41,7 @@ python -c "from importlib.metadata import entry_points as e; print([x.name for x
 | `HORUS_LINEAGE_DIR` | `~/.horus-lineage` | Where run directories are written. Set to `@run` to write under the workflow's own run directory, or to any absolute path. |
 | `HORUS_LINEAGE_DIGESTS` | on | Set to `0`, `false`, `no` or `off` to record paths and sizes without hashing. Records written this way carry no edges. |
 | `HORUS_LINEAGE_MERGE` | off | Set to `1` to fold the per-task records into a single `records.jsonl` once the run ends. Worth it at a few hundred tasks, or over a network filesystem. |
+| `HORUS_LINEAGE_COMMAND` | on | Set to `0` to leave `command` out of every record, for a workflow that passes a secret as an argument. |
 
 Writes are local only. Point `HORUS_LINEAGE_DIR` at a local filesystem and
 sync afterwards. A network mount or object store inside a middleware can
@@ -114,7 +117,9 @@ exist are the lineage of how far it got.
   "recorded_at": "2026-09-01T11:02:23.641852+00:00",
   "task": {"id": "analyse", "definition_id": null, "kind": "horus_task",
            "name": "Analyse", "status": "completed", "skip_reason": null,
-           "runs": 1},
+           "runs": 1,
+           "started_at": "2026-09-01T11:02:23.512044+00:00",
+           "finished_at": "2026-09-01T11:02:23.640127+00:00"},
   "target": {"kind": "local", "location_id": "local://node-01"},
   "working_dir": "/work/experiment/results/analyse/41ab2a1c...",
   "command": "python3 analyse.py --prepared ... --out ...",
@@ -175,6 +180,22 @@ Treat those records as partial rather than clean.
   build its fingerprint. Records reuse that value, so bytes are read once
   per run and the record matches the value the engine acted on.
 - **Re-runs never overwrite history.** Each run gets its own directory.
+- **A moved manifest is reported, not hidden.** The engine's fingerprint
+  manifest sits at an undocumented path. If a release moves it, digests
+  are re-hashed and one warning per run says so.
+
+## Sharing
+
+Executor and target settings reach a record only as digests, and the
+workflow definition is a projection of known fields, so a plugin that
+holds a credential in its model cannot leak it. Two fields are copied as
+written and are only as clean as the workflow that produced them:
+
+- `command` is the substituted command line. A secret passed as an
+  argument is recorded with it. Pass secrets through the environment,
+  which is never recorded, or set `HORUS_LINEAGE_COMMAND=0`.
+- `workflow.yaml` is the source file, byte for byte. A secret written
+  into it travels with the run directory.
 
 ## Known limits
 
@@ -183,16 +204,12 @@ Treat those records as partial rather than clean.
   listing is unavailable or too expensive.
 - **Folder artifacts have no digest.** The engine's `digest` returns `None`
   for directories, so `sha256` is absent and those artifacts do not join.
-- **Code files are found heuristically**, by scanning each runtime's own
-  fields for values resolving to a local file with a code suffix. This
-  misses files an executor owns, such as a conda requirements file.
-  `BaseRuntime.local_files()` and `BaseExecutor.local_files()` landed in
-  horus-runtime 0.5.0 and should replace the scan.
-- **Cost signals are relative.** `target` is a fact, but duration (once
-  recorded) is wall clock, which varies severalfold for identical work with
-  cluster load and queue wait, and `ResourceRequest` fields are advisory
-  hints a target may ignore. Use them to rank changes against each other,
-  not to state absolute cost or carbon. See
+- **Cost signals are relative.** `target` is a fact, but the duration
+  between `started_at` and `finished_at` is wall clock, which varies
+  severalfold for identical work with cluster load and queue wait, and
+  `ResourceRequest` fields are advisory hints a target may ignore. Use
+  them to rank changes against each other, not to state absolute cost or
+  carbon. See
   [`docs/adr/0008`](docs/adr/0008-cost-signals-are-relative.md).
 - **The affected set is an upper bound.** A task re-runs only when its own
   inputs or config changed, so a task producing identical bytes from
