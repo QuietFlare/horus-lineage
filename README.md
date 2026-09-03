@@ -192,6 +192,12 @@ Treat those records as partial rather than clean.
   read defensively and every artifact reports none until then.
 - **Code files are found heuristically**, by scanning each runtime's own
   fields for values resolving to a local file with a code suffix.
+- **Cost signals are relative.** `target` is a fact, but duration (once
+  recorded) is wall clock, which varies severalfold for identical work with
+  cluster load and queue wait, and `ResourceRequest` fields are advisory
+  hints a target may ignore. Use them to rank changes against each other,
+  not to state absolute cost or carbon. See
+  [`docs/adr/0008`](docs/adr/0008-cost-signals-are-relative.md).
 - **The engine does not invalidate on script edits.** A runtime holds its
   script as a path, so editing the file changes neither `config_sha256` nor
   any input digest, and the task will skip with stale code. The per-task
