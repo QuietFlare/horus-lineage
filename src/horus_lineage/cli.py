@@ -26,6 +26,10 @@ import sys
 
 COMMANDS = {
     "report": ("horus_lineage.report", "render one run directory as HTML"),
+    "conformance": (
+        "horus_lineage.conformance",
+        "check a run directory against the record format",
+    ),
 }
 
 

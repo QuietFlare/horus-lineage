@@ -211,7 +211,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "horus-runtime", specifier = ">=0.1.3" }]
+requires-dist = [{ name = "horus-runtime", specifier = ">=0.5.0" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -228,7 +228,7 @@ dev = [
 
 [[package]]
 name = "horus-runtime"
-version = "0.4.2"
+version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -239,9 +239,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "rich" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3b/49/c05723e31cbd3ca13caa8cc6158782c999c1e47a846e9baaeca8f0c2be65/horus_runtime-0.4.2.tar.gz", hash = "sha256:d92e747f41ba89e735a8502928eeec238138fd136b814971a076e6e2c366347c", size = 284539, upload-time = "2026-08-29T11:05:15.781Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/22/db/6bc19f597783342805669f3524de41e4cf727d951b9451d720b556a0b705/horus_runtime-0.5.0.tar.gz", hash = "sha256:bf9213e1ec3914d4e2e960e42e271267084aefcc464c3f0103e443b153fcba79", size = 288611, upload-time = "2026-09-02T12:29:58.382Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f1/c2/d4f2b827c62b4c150b1b19838c53c5423d8ea3ff39a67dacd3cf5848c408/horus_runtime-0.4.2-py3-none-any.whl", hash = "sha256:f240a8ef4c531a553e7d97bed30651b8b48d96fc8c7d1a5614329a9671c35ae3", size = 278845, upload-time = "2026-08-29T11:05:14.073Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/f2/294a71c4ef1d2da18db3f47dc3c005d322a720e1f85663e96bd5f8114650/horus_runtime-0.5.0-py3-none-any.whl", hash = "sha256:c625f886fa210a423628144d45736310de46457fe9eedde95b3a5b3455bba67c", size = 280507, upload-time = "2026-09-02T12:29:56.55Z" },
 ]
 
 [[package]]

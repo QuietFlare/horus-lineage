@@ -33,6 +33,7 @@ from horus_runtime.core.task.exceptions import TaskExecutionError
 from horus_runtime.core.workflow.base import BaseWorkflow
 
 import horus_lineage.record as record_module
+from horus_lineage import conformance
 
 WORKFLOW = """
 kind: horus_workflow
@@ -133,6 +134,38 @@ def plan(run: Path) -> dict[str, Any]:
     """
     parsed: dict[str, Any] = json.loads((run / "run.json").read_text())
     return parsed
+
+
+@pytest.mark.usefixtures("horus_context", "init_registry")
+class TestTheFormatIsHonoured:
+    """
+    The recorder held to its own published contract.
+
+    The unit tests check the suite against hand-built records. This
+    checks the records the recorder actually writes, which is the pair
+    that matters: a suite that drifts from the recorder proves nothing,
+    and a recorder that drifts from the suite breaks every reader.
+    """
+
+    async def test_an_executed_run_conforms(
+        self, project: Path, records_dir: Path
+    ) -> None:
+        """
+        The ordinary case, digests and all.
+        """
+        await run_workflow(project)
+        assert conformance.check_run(runs(records_dir)[0]) == []
+
+    async def test_a_cached_run_conforms(
+        self, project: Path, records_dir: Path
+    ) -> None:
+        """
+        A re-run is mostly skips, and a confirmed skip records in full.
+        This is where a reader's chain would break first.
+        """
+        await run_workflow(project)
+        await run_workflow(project)
+        assert conformance.check_run(runs(records_dir)[-1]) == []
 
 
 @pytest.mark.usefixtures("horus_context", "init_registry")
