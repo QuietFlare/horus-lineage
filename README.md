@@ -10,7 +10,7 @@ carry credentials. See [Sharing](#sharing) for the two verbatim fields.
 
 `horus-lineage report` turns a run directory into a single self-contained
 page: what the run produced, what it took from outside, and what the result
-rests on.
+rests on. It is off by default, see `HORUS_LINEAGE_REPORT` below.
 
 ![A lineage report: the derivation drawing, what came from outside the run, and the chain behind the final result](docs/report.png)
 
@@ -42,6 +42,7 @@ python -c "from importlib.metadata import entry_points as e; print([x.name for x
 | `HORUS_LINEAGE_DIGESTS` | on | Set to `0`, `false`, `no` or `off` to record paths and sizes without hashing. Records written this way carry no edges. |
 | `HORUS_LINEAGE_MERGE` | off | Set to `1` to fold the per-task records into a single `records.jsonl` once the run ends. Worth it at a few hundred tasks, or over a network filesystem. |
 | `HORUS_LINEAGE_COMMAND` | on | Set to `0` to leave `command` out of every record, for a workflow that passes a secret as an argument. |
+| `HORUS_LINEAGE_REPORT` | off | Set to `1` to enable `horus-lineage report`. Recording and `conformance` do not depend on it. |
 
 Writes are local only. Point `HORUS_LINEAGE_DIR` at a local filesystem and
 sync afterwards. A network mount or object store inside a middleware can

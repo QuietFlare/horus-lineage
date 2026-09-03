@@ -38,6 +38,9 @@ ENV_MERGE = "HORUS_LINEAGE_MERGE"
 ENV_COMMAND = "HORUS_LINEAGE_COMMAND"
 """Set to a false-ish value to leave the resolved command out of records."""
 
+ENV_REPORT = "HORUS_LINEAGE_REPORT"
+"""Set to a true-ish value to enable the ``report`` command. Off by default."""
+
 BESIDE_THE_RUN = "@run"
 """
 ``HORUS_LINEAGE_DIR=@run`` writes records under the workflow's own run
@@ -114,3 +117,8 @@ class LineageConfig:
         if raw is None:
             return default
         return raw.strip().lower() not in _FALSE
+
+
+def report_enabled() -> bool:
+    """Whether the HTML report is switched on for this process."""
+    return LineageConfig._flag(ENV_REPORT, False)  # noqa: SLF001

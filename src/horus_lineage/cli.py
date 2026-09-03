@@ -24,6 +24,8 @@ exists for the things you do with a run directory afterwards.
 
 import sys
 
+from horus_lineage.config import ENV_REPORT, report_enabled
+
 COMMANDS = {
     "report": ("horus_lineage.report", "render one run directory as HTML"),
     "conformance": (
@@ -32,21 +34,28 @@ COMMANDS = {
     ),
 }
 
+OFF = f"off, set {ENV_REPORT}=1"
+"""How a gated command is marked in the usage and refused."""
+
 
 def usage() -> str:
     """What the bare command prints."""
     width = max(len(name) for name in COMMANDS)
     lines = ["usage: horus-lineage <command> [options]", "", "commands:"]
-    lines += [
-        f"  {name.ljust(width)}  {help_}"
-        for name, (_, help_) in COMMANDS.items()
-    ]
+    for name, (_, help_) in COMMANDS.items():
+        note = f" ({OFF})" if _off(name) else ""
+        lines.append(f"  {name.ljust(width)}  {help_}{note}")
     lines += [
         "",
         "Recording itself needs no command: install the package and "
         "Horus loads it.",
     ]
     return "\n".join(lines)
+
+
+def _off(name: str) -> bool:
+    """Whether *name* is the report and the report is switched off."""
+    return name == "report" and not report_enabled()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -57,6 +66,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if argv[0] not in COMMANDS:
         print(f"horus-lineage: unknown command {argv[0]!r}\n\n{usage()}")
+        return 2
+    if _off(argv[0]):
+        print(f"horus-lineage: {argv[0]} is {OFF}")
         return 2
 
     import importlib
