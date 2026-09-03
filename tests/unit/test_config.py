@@ -26,6 +26,7 @@ import pytest
 from horus_lineage.config import (
     BESIDE_THE_RUN,
     DEFAULT_ROOT,
+    ENV_COMMAND,
     ENV_DIGESTS,
     ENV_MERGE,
     ENV_ROOT,
@@ -137,3 +138,27 @@ class TestMerge:
         """
         monkeypatch.setenv(ENV_MERGE, "1")
         assert LineageConfig.from_env().merge is True
+
+
+class TestCommand:
+    """
+    Leaving the resolved command out of records.
+    """
+
+    def test_it_is_recorded_by_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        The command is the most useful line in a record.
+        """
+        monkeypatch.delenv(ENV_COMMAND, raising=False)
+        assert LineageConfig.from_env().command is True
+
+    def test_it_can_be_switched_off(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        For a workflow that passes a secret as an argument.
+        """
+        monkeypatch.setenv(ENV_COMMAND, "0")
+        assert LineageConfig.from_env().command is False

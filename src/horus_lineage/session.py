@@ -66,6 +66,9 @@ class LineageSession:
     writes only the tasks it never saw (ADR 0007).
     """
 
+    warned: set[str] = field(default_factory=set)
+    """Warnings already logged this run, so each fires once."""
+
 
 _session: ContextVar[LineageSession | None] = ContextVar(
     "horus_lineage_session", default=None

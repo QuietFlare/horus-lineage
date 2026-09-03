@@ -36,26 +36,24 @@ def affected(run_dir, changed):
     """
     Which tasks a change to *changed* reaches.
 
-    Returns the tasks that certainly re-run, the transitive closure that
-    might, and whether the engine will actually notice the change at all.
+    Returns the tasks that certainly re-run and the transitive closure
+    that might.
     """
     records, definition = load(run_dir)
     children = downstream(definition)
     digest = hashlib.sha256(Path(changed).read_bytes()).hexdigest()
     target = str(Path(changed).resolve())
 
-    direct, engine_sees = set(), True
+    direct = set()
     for task_id, record in records.items():
         # An input this task consumes, matched by path or by content.
         for entry in record["inputs"]:
             if entry["path"] == target or entry.get("sha256") == digest:
                 direct.add(task_id)
-        # A script this task runs. The engine's fingerprint holds the
-        # script's path rather than its bytes, so it cannot see this.
+        # A script or environment file this task reads.
         for entry in record["code"]:
             if entry["path"] == target:
                 direct.add(task_id)
-                engine_sees = False
 
     closure, queue = set(direct), list(direct)
     while queue:
@@ -65,16 +63,15 @@ def affected(run_dir, changed):
                 queue.append(child)
 
     where = {t: records[t]["target"]["location_id"] for t in closure}
-    return direct, closure, engine_sees, where
+    return direct, closure, where
 
 
 if __name__ == "__main__":
     run_dir = Path(sys.argv[1])
     changed = sys.argv[2]
-    direct, closure, engine_sees, where = affected(run_dir, changed)
+    direct, closure, where = affected(run_dir, changed)
     print(f"changed: {changed}")
     print(f"  certainly re-runs : {sorted(direct)}")
     print(f"  upper bound       : {sorted(closure)}")
-    print(f"  engine detects it : {engine_sees}")
     for task, location in sorted(where.items()):
         print(f"    {task:10} runs on {location}")

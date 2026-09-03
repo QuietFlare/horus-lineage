@@ -1,13 +1,15 @@
-# Translations template for horus_lineage.
+# Translations template for horus-lineage.
 # Copyright (C) 2026 QuietFlare
-# This file is distributed under the same license as the horus_lineage project.
+# This file is distributed under the same license as the horus-lineage
+# project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
 #
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: horus_lineage VERSION\n"
+"Project-Id-Version: horus-lineage VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-04-12 00:00+0000\n"
+"POT-Creation-Date: 2026-09-03 14:13+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,6 +18,21 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: src/horus_lineage/task/custom_task.py
-msgid "CustomTask._run() is not implemented yet."
+#: src/horus_lineage/observer.py:60
+#, python-format
+msgid "horus-lineage could not %(what)s: %(error)s"
 msgstr ""
+
+#: src/horus_lineage/record.py:380
+#, python-format
+msgid ""
+"horus-lineage found no fingerprint manifest for skipped task %(task)s "
+"under %(dir)s, so input digests were re-hashed. The installed horus-"
+"runtime may file its manifest elsewhere."
+msgstr ""
+
+#: src/horus_lineage/middleware/workflow.py:131
+#, python-format
+msgid "horus-lineage merged %(count)s task records"
+msgstr ""
+

@@ -85,11 +85,10 @@ pick 2 && scenario "the root input" \
   data/raw.csv 'c,8=>c,9'
 pick 3 && scenario "an input feeding only the last task" \
   data/reference.txt 'threshold=10=>threshold=99'
-pick 4 && scenario "a SCRIPT, which the engine cannot see" \
+pick 4 && scenario "a script" \
   scripts/qc.py '"rows": len(rows)=>"rows": len(rows), "checked": True'
 
 rule
-echo "Scenarios 1 to 3: the prediction matches the engine exactly."
-echo "Scenario 4: the records name the affected tasks and warn that the"
-echo "engine will not act on them. It re-runs nothing and keeps stale"
-echo "output, which is the gap these records exist to close."
+echo "The prediction names the tasks the engine re-ran, from the records"
+echo "alone. Scenario 4 needs horus-runtime 0.5.0, which digests scripts"
+echo "into the fingerprint. Older engines skip the task with stale code."

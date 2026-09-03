@@ -261,10 +261,9 @@ class TestHonesty:
 
     def test_code_digests_explain_why_they_exist(self, page: str) -> None:
         """
-        The engine's own cache cannot see a script's bytes. Someone
-        reading a run should learn that here.
+        The engine re-runs on an edit. The digests say which file.
         """
-        assert "cannot see these" in page
+        assert "name which file changed" in page
 
     def test_the_page_says_it_is_not_the_record(self, page: str) -> None:
         """

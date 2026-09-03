@@ -25,12 +25,15 @@ without running anything.
 
 import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from horus_runtime.core.artifact.store import ArtifactStore
+from horus_runtime.logging import horus_logger
 
 from horus_lineage import RECORD_FORMAT
+from horus_lineage.i18n import tr as _
 from horus_lineage.writer import digest_of, now
 
 if TYPE_CHECKING:
@@ -52,13 +55,10 @@ folder. Not a digest, so it never reaches a record.
 """
 
 _CODE_SUFFIXES = frozenset({".py", ".sh", ".R", ".r", ".jl", ".pl", ".rb"})
-"""
-Suffixes worth digesting as code.
+"""Fallback scan for owners without ``local_files()`` (pre-0.5.0)."""
 
-Deliberately narrow. A runtime names its script by path rather than
-carrying its bytes, so these files are invisible to the engine's own
-fingerprint and this is the only record of them (ADR 0005).
-"""
+_MANIFEST_WARNING = "manifest"
+"""Session key for the once-per-run missing manifest warning."""
 
 
 def project_definition(workflow: "BaseWorkflow") -> dict[str, Any]:
@@ -166,29 +166,55 @@ def environment(task: "BaseTask") -> dict[str, Any]:
 
 def code_files(task: "BaseTask") -> list[dict[str, Any]]:
     """
-    Digests of the local code files this task's runtime referenced.
-
-    Found by scanning the runtime's own fields for values that resolve to
-    an existing local file with a code suffix, because ``BaseRuntime``
-    knows its local paths (it anchors them) but does not expose them. An
-    accessor upstream would replace this heuristic.
+    Digests of the local files the runtime and executor read.
     """
     found: list[dict[str, Any]] = []
     seen: set[Path] = set()
-    for key, value in task.runtime.model_dump(mode="json").items():
-        path = _as_code_path(value)
-        if path is None or path in seen:
-            continue
-        seen.add(path)
-        found.append(
-            {
-                "path": str(path),
-                "size": path.stat().st_size,
-                "sha256": _digest_local(path),
-                "role": key,
-            }
-        )
+    owners = ((task.runtime, "runtime"), (task.executor, "executor"))
+    for owner, fallback in owners:
+        for path, role in _owned_files(owner, fallback):
+            if path in seen:
+                continue
+            seen.add(path)
+            found.append(
+                {
+                    "path": str(path),
+                    "size": path.stat().st_size,
+                    "sha256": _digest_local(path),
+                    "role": role,
+                }
+            )
     return found
+
+
+def _owned_files(owner: Any, fallback: str) -> list[tuple[Path, str]]:
+    """
+    Files from ``local_files()``, then the field scan, each with its role.
+    """
+    fields = owner.model_dump(mode="json")
+    by_value = {
+        value: key
+        for key, value in fields.items()
+        if isinstance(value, str) and value
+    }
+
+    owned: list[tuple[Path, str]] = []
+    accessor = getattr(owner, "local_files", None)
+    try:
+        declared = list(accessor()) if callable(accessor) else []
+    except Exception:
+        declared = []
+    for raw in declared:
+        path = Path(raw)
+        if path.is_file():
+            role = by_value.get(str(raw)) or by_value.get(str(path))
+            owned.append((path, role or fallback))
+
+    for key, value in fields.items():
+        scanned = _as_code_path(value)
+        if scanned is not None:
+            owned.append((scanned, key))
+    return owned
 
 
 def _as_code_path(value: Any) -> Path | None:
@@ -259,7 +285,10 @@ async def build_task_record(
     full for the same reason an executed one is: its outputs exist, and
     omitting them would break every edge through a cached task.
     """
-    known = _known_digests(await read_fingerprint(task))
+    fingerprint = await read_fingerprint(task)
+    if fingerprint is None:
+        _probe_manifest(task, status, session)
+    known = _known_digests(fingerprint)
 
     reader = ArtifactReader(task.target, session.config.digests)
     inputs = [
@@ -278,10 +307,18 @@ async def build_task_record(
     elif any("sha256" not in entry for entry in (*inputs, *outputs)):
         incomplete.append("digests_partial")
 
+    # The engine stamps finished_at after the chain returns (ADR 0007),
+    # so inside wrap it is still unset and this moment is the same one.
+    started_at = _instant(getattr(task, "started_at", None))
+    finished_at = _instant(getattr(task, "finished_at", None))
+    if started_at is not None and finished_at is None:
+        finished_at = now()
+
     return {
         "format": RECORD_FORMAT,
         "run": session.run,
-        "execution": task._execution_id,  # noqa: SLF001
+        # Private upstream, no public accessor yet. Lenient per ADR 0004.
+        "execution": getattr(task, "_execution_id", None),
         "definition_sha256": session.definition_sha256,
         "recorded_at": now(),
         "task": {
@@ -296,6 +333,8 @@ async def build_task_record(
                 else None
             ),
             "runs": task.runs,
+            "started_at": started_at,
+            "finished_at": finished_at,
         },
         "target": {
             "kind": task.target.kind,
@@ -309,6 +348,41 @@ async def build_task_record(
         "outputs": outputs,
         "incomplete": incomplete,
     }
+
+
+def _instant(value: Any) -> str | None:
+    """
+    *value* as an ISO 8601 instant with an offset, naive read as UTC.
+    """
+    if not isinstance(value, datetime):
+        return None
+    stamp: datetime = value
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=UTC)
+    return stamp.isoformat()
+
+
+def _probe_manifest(
+    task: "BaseTask", status: "TaskStatus", session: "LineageSession"
+) -> None:
+    """
+    Warn once per run when a confirmed skip has no manifest to read.
+    """
+    if status.value != "skipped" or task.skip_reason is None:
+        return
+    if task.skip_reason.value != "complete":
+        return
+    if _MANIFEST_WARNING in session.warned:
+        return
+    session.warned.add(_MANIFEST_WARNING)
+    horus_logger.log.warning(
+        _(
+            "horus-lineage found no fingerprint manifest for skipped task "
+            "%(task)s under %(dir)s, so input digests were re-hashed. The "
+            "installed horus-runtime may file its manifest elsewhere."
+        )
+        % {"task": task.id, "dir": MANIFEST_DIR}
+    )
 
 
 def _known_digests(fingerprint: dict[str, Any] | None) -> dict[str, str]:

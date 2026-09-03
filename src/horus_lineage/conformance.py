@@ -270,6 +270,10 @@ def check_record(check: Check, record: Any, where: str) -> None:
         check.typed(f"{where}.task", task, "status", str)
         check.optional(f"{where}.task", task, "name", str)
         check.optional(f"{where}.task", task, "runs", int)
+        # Null on a skip, and on records older than the fields.
+        for instant in ("started_at", "finished_at"):
+            if task.get(instant) is not None:
+                check.timestamp(f"{where}.task.{instant}", task[instant])
 
     _record_evidence(check, record, where)
 

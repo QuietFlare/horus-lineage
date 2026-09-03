@@ -84,7 +84,9 @@ know about are dropped rather than passed through.
     "name": "Analyse batches",
     "status": "completed",
     "skip_reason": null,
-    "runs": 1
+    "runs": 1,
+    "started_at": "2026-09-01T14:20:05+00:00",
+    "finished_at": "2026-09-01T14:22:31+00:00"
   },
   "target": {"kind": "ssh", "location_id": "ssh://user@cluster-a"},
   "working_dir": "/scratch/experiment_pipeline/run-123/analyse/7d40e6b2",
@@ -120,17 +122,21 @@ Field notes:
     task.status        skipped, failed and cancelled tasks are recorded
                        too, derived in wrap rather than read after the
                        fact (ADR 0007)
+    task.started_at    the engine's own stamps, null on a skip. Their
+    task.finished_at   difference is wall clock, see ADR 0008
     target             kind and location id only, no credentials. A
                        location id may embed a username, as in
                        ssh://user@host, which is identity, not secret
     working_dir        per-run, per-invocation scratch. Changes every
                        run by design, unlike artifact paths
-    command            the substituted command, captured by wrapping
-                       setup_runtime, null when it could not be captured
+    command            the substituted command, verbatim, captured by
+                       wrapping setup_runtime. Null when it could not be
+                       captured or when recording it is switched off
     environment        digests of the executor and the runtime, plus
                        config_sha256, the engine's own combined value
     code               digests of the local files this task's runtime
-                       referenced, attributed to this task
+                       and executor read, attributed to this task. role
+                       names the field each came from
     sha256             content digest of the bytes, absent when the
                        artifact cannot be hashed
     size               cheap secondary identity for systems without
@@ -164,26 +170,33 @@ Attributing digests to the task that ran them is what turns a changed
 file into a set of affected tasks and, through `target`, the machines
 those tasks run on.
 
+Two fields are verbatim and only as clean as the workflow. `command` is
+the substituted command line, so a secret passed as an argument lands in
+the record, and `source` is the workflow file byte for byte. The engine
+projection keeps a plugin's credentials out. It cannot keep out what the
+author typed. Recording the command can be switched off per run.
+
 ### What a change is and is not detectable in
 
 The format answers "what is affected when X changed" for some kinds of X
 and honestly cannot for others. A reader should be built knowing which.
 
-**A script changed.** Detectable, and only here. A runtime holds its
-script as a path rather than as bytes, so editing the file leaves the
-runtime dump identical and `config_sha256` with it. The script is not a
-declared input either, so its digest is absent from the fingerprint.
+**A script changed.** Detectable, and since horus-runtime 0.5.0 the
+engine detects it too. A runtime holds its script as a path, so the
+runtime dump and `config_sha256` do not move when the file is edited.
+Before 0.5.0 the script was outside the fingerprint as well, and a
+local run showed the consequence: the engine skipped the task, kept the
+stale output, and applied the edit two runs later when an unrelated
+input change happened to invalidate the cache. Each runtime and
+executor now declares its local files through `local_files()`, the
+engine digests them into the fingerprint, and the task re-runs.
 
-Verified on a local run. Editing a script changed its sha256, and the
-engine skipped the task and kept the stale output. The edit does not
-vanish, it waits: it applied two runs later, when an unrelated input
-change invalidated the cache, so the output moved at a moment that
-pointed at the wrong cause. The per-task `code` digests are the only
-record of what actually changed.
+The per-task `code` digests keep their job under 0.5.0. The engine's
+fingerprint says *that* the task is stale, and `code` says *which* file
+moved, attributed to the tasks that read it.
 
-The exception is a templated script, `script: ${my_script}`, which names
-an input artifact rather than a local file. That is an ordinary input,
-so the engine invalidates correctly.
+A templated script, `script: ${my_script}`, names an input artifact
+rather than a local file and is an ordinary input.
 
 **A declared environment changed.** Detectable. An image reference,
 a requirements list or an interpreter lives in the executor's model, so
@@ -278,11 +291,10 @@ a set of tasks and, through `target`, to the machines those tasks run on.
 What that recomputation costs is not recorded and not inferred. The
 machines are the signal, and whoever owns them prices it.
 
-Per-task `code` digests make the recorder the only thing that detects an
-edited script, since the engine's fingerprint holds the script's path
-rather than its bytes. That is a gap worth reporting upstream. Until it
-closes, a reader that trusts the engine to invalidate on code changes
-will be wrong, and one that reads these digests will not.
+Per-task `code` digests were, before horus-runtime 0.5.0, the only thing
+that detected an edited script. The gap was reported upstream and
+closed. A reader of records from an older engine should still not trust
+it to have invalidated on a code change.
 
 The affected set is an upper bound, not an answer. A task re-runs only
 when its own inputs or config changed, so a task that produces identical

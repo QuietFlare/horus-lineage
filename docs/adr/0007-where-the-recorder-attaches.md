@@ -57,6 +57,12 @@ scheduler's own `wait()` still raises exactly what it would have raised.
 This is the one place the recorder touches control flow at all, and ADR
 0004 still holds: it adds no failure path of its own.
 
+The same applies to `finished_at`, which horus-runtime 0.5.0 stamps in
+the same block as the status. Inside `wrap` it is still unset, so the
+task record stamps the moment the chain returned, which is the instant
+the engine is about to write. `started_at` is set before the chain and
+is read as is.
+
 Deriving status in `wrap` rather than reading `task.status` means the
 recorder reimplements a mapping the engine owns. If upstream ever moves
 the status assignment inside the chain, this becomes redundant rather
