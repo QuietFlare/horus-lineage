@@ -140,6 +140,7 @@ convention = "google"
 # so `horus-lineage --help` does not pay for every report.
 "src/horus_lineage/cli.py" = ["T201", "PLC0415"]
 "src/horus_lineage/report.py" = ["T201"]
+"src/horus_lineage/conformance.py" = ["T201"]
 
 [tool.ruff.format]
 quote-style = "double"
