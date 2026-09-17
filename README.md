@@ -211,8 +211,12 @@ written and are only as clean as the workflow that produced them:
 - **`size` is best effort.** `ArtifactStore` exposes a digest and no size,
   so sizes come from a cached directory listing and are omitted when that
   listing is unavailable or too expensive.
-- **Folder artifacts have no digest.** The engine's `digest` returns `None`
-  for directories, so `sha256` is absent and those artifacts do not join.
+- **A folder's digest is over its contents, not its bytes.** The engine
+  hashes files only, so a folder gets the sha256 of a sorted manifest of
+  its files' digests and relative paths, marked `digest_of: tree`. Two
+  folders with the same files agree, which is what a fan-out's per-clone
+  folders need to join. It is not a digest any other tool will reproduce
+  from the folder alone.
 - **Cost signals are relative.** `target` is a fact, but the duration
   between `started_at` and `finished_at` is wall clock, which varies
   severalfold for identical work with cluster load and queue wait, and

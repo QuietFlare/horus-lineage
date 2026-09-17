@@ -308,6 +308,42 @@ class TestShareability:
         )
         assert any("expected a sha256" in v for v in found)
 
+    def test_a_tree_digest_is_allowed_when_marked(
+        self, tmp_path: Path
+    ) -> None:
+        """
+        A folder's digest is over its contents and says so.
+        """
+        record = json.loads(json.dumps(RECORD))
+        record["outputs"][0]["digest_of"] = "tree"
+        found = violations(
+            write(tmp_path, records={"prep.abcd1234.json": record})
+        )
+        assert found == []
+
+    def test_a_digest_marker_needs_a_digest(self, tmp_path: Path) -> None:
+        """
+        The marker describes a digest; without one it describes nothing.
+        """
+        record = json.loads(json.dumps(RECORD))
+        record["outputs"][0].pop("sha256")
+        record["outputs"][0]["digest_of"] = "tree"
+        found = violations(
+            write(tmp_path, records={"prep.abcd1234.json": record})
+        )
+        assert any("names a digest the entry lacks" in v for v in found)
+
+    def test_an_unknown_digest_kind_is_caught(self, tmp_path: Path) -> None:
+        """
+        One kind of derived digest exists; a second is a format change.
+        """
+        record = json.loads(json.dumps(RECORD))
+        record["outputs"][0]["digest_of"] = "merkle"
+        found = violations(
+            write(tmp_path, records={"prep.abcd1234.json": record})
+        )
+        assert any("expected 'tree'" in v for v in found)
+
     def test_a_naive_timestamp_is_caught(self, tmp_path: Path) -> None:
         """
         Without an offset, two hosts' records cannot be ordered.
