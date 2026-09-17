@@ -25,6 +25,7 @@ without running anything.
 
 import hashlib
 import json
+import shlex
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -385,6 +386,43 @@ def _probe_manifest(
     )
 
 
+_TREE_COMMAND = (
+    'H="$(command -v sha256sum || echo shasum -a 256)"; '
+    "cd {path} && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 $H"
+)
+"""
+Every file under a folder, hashed target-side in a fixed order. ``shasum``
+is the fallback because macOS ships no ``sha256sum``.
+"""
+
+_SHA256_HEX_LEN = 64
+
+
+async def tree_digest(target: "BaseTarget", path: str) -> str | None:
+    """
+    sha256 of a folder's contents: one line per file, its digest and its
+    relative path, sorted, then hashed. Two folders holding the same bytes
+    under the same names agree wherever they live. ``None`` when *path* is
+    not a folder or the target cannot hash.
+    """
+    proc = await target.run_command_sync(
+        _TREE_COMMAND.format(path=shlex.quote(path))
+    )
+    out, _stderr = await proc.communicate()
+    if await proc.wait() != 0:
+        return None
+
+    lines = []
+    for line in out.decode(errors="replace").splitlines():
+        digest, _, rest = line.partition(" ")
+        # sha256sum marks binary mode with a leading "*"; the name is the same.
+        name = rest.strip().lstrip("*")
+        if len(digest) == _SHA256_HEX_LEN and name.startswith("./"):
+            lines.append(f"{digest}  {name}")
+    manifest = "".join(f"{line}\n" for line in lines)
+    return hashlib.sha256(manifest.encode()).hexdigest()
+
+
 def _known_digests(fingerprint: dict[str, Any] | None) -> dict[str, str]:
     """
     Input digests from a fingerprint, minus the unhashable placeholder.
@@ -467,10 +505,18 @@ class ArtifactReader:
             entry["size"] = size
 
         sha256 = known_digest
+        tree = False
         if sha256 is None and self.digests:
             sha256 = await self.store.digest(artifact)
+            if sha256 is None:
+                # The engine hashes files only. A folder gets a digest of
+                # its contents, so a fan-out's per-clone folders still join.
+                sha256 = await tree_digest(self.target, path)
+                tree = sha256 is not None
         if sha256 is not None:
             entry["sha256"] = sha256
+            if tree:
+                entry["digest_of"] = "tree"
         return entry
 
     async def _size(self, path: str) -> int | None:

@@ -139,10 +139,10 @@ def _artifact(check: Check, where: str, entry: Any) -> None:
     """
     One input or output entry.
 
-    ``sha256`` is optional by design: a folder has none, and ADR 0003
-    says an absent digest is reported rather than invented. ``labels``
-    is absent when empty, so an unlabelled run reads as it did before
-    the field existed.
+    ``sha256`` is optional by design: an absent digest is reported rather
+    than invented. A folder's digest is over its contents and says so with
+    ``digest_of: tree``. ``labels`` is absent when empty, so an unlabelled
+    run reads as it did before the field existed.
     """
     if not isinstance(entry, dict):
         check.fail(where, f"expected an object, found {type(entry).__name__}")
@@ -152,6 +152,14 @@ def _artifact(check: Check, where: str, entry: Any) -> None:
     check.optional(where, entry, "size", int)
     if entry.get("sha256") is not None:
         check.digest(f"{where}.sha256", entry["sha256"])
+    if "digest_of" in entry:
+        if entry.get("sha256") is None:
+            check.fail(f"{where}.digest_of", "names a digest the entry lacks")
+        elif entry["digest_of"] != "tree":
+            check.fail(
+                f"{where}.digest_of",
+                f"expected 'tree', found {entry['digest_of']!r}",
+            )
     if "labels" in entry:
         labels = entry["labels"]
         if not isinstance(labels, dict):

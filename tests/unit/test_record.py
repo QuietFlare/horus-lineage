@@ -19,6 +19,8 @@
 Tests for the projections, which need no run to exercise.
 """
 
+import asyncio
+import hashlib
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -37,6 +39,7 @@ from horus_lineage.record import (
     code_files,
     labels_of,
     read_fingerprint,
+    tree_digest,
 )
 from horus_lineage.session import LineageSession
 
@@ -386,3 +389,128 @@ class TestReadFingerprintOnARemoteTarget:
         target.files["/remote/work/.horus/prep.json"] = b"{"
         task: Any = SimpleNamespace(id="prep", target=target)
         assert await read_fingerprint(task) is None
+
+
+class LocalShellTarget:
+    """
+    A target whose channel is this machine's shell, so a folder digest
+    runs the real command.
+    """
+
+    kind = "local-shell"
+
+    def __init__(self, root: Path) -> None:
+        """Work under *root*."""
+        self.resolved_working_directory = str(root)
+
+    def path_on_target(self, artifact: Any) -> str:
+        """Artifacts are wherever the test put them."""
+        return str(artifact.path)
+
+    async def list_dir(self, _path: str) -> list[RemoteDirEntry]:
+        """No sizes; the digest is what these tests are about."""
+        raise OSError("listing refused")
+
+    async def run_command_sync(
+        self,
+        cmd: str,
+        *,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+    ) -> Any:
+        """Run *cmd* here."""
+        return await asyncio.create_subprocess_shell(
+            cmd,
+            cwd=cwd,
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+
+def shell_target(root: Path) -> Any:
+    """A local shell target, loosely typed as it stands in for BaseTarget."""
+    return LocalShellTarget(root)
+
+
+class TestTreeDigest:
+    """
+    A folder is digested over its contents, since the engine hashes files
+    only and a fan-out hands its clones folders.
+    """
+
+    @staticmethod
+    def _folder(root: Path, name: str, files: dict[str, str]) -> Path:
+        folder = root / name
+        for relative, text in files.items():
+            (folder / relative).parent.mkdir(parents=True, exist_ok=True)
+            (folder / relative).write_text(text)
+        folder.mkdir(exist_ok=True)
+        return folder
+
+    async def test_same_files_same_digest_wherever_they_live(
+        self, tmp_path: Path
+    ) -> None:
+        """
+        The digest depends on names and bytes, not on where the folder is.
+        """
+        files = {"a.txt": "one", "sub/b.txt": "two"}
+        first = self._folder(tmp_path, "here", files)
+        second = self._folder(tmp_path, "there", files)
+        target = shell_target(tmp_path)
+        assert await tree_digest(target, str(first)) == await tree_digest(
+            target, str(second)
+        )
+
+    async def test_a_changed_byte_changes_the_digest(
+        self, tmp_path: Path
+    ) -> None:
+        """One byte in one file is a different folder."""
+        first = self._folder(tmp_path, "a", {"x.txt": "one"})
+        second = self._folder(tmp_path, "b", {"x.txt": "one!"})
+        target = shell_target(tmp_path)
+        assert await tree_digest(target, str(first)) != await tree_digest(
+            target, str(second)
+        )
+
+    async def test_a_file_is_not_a_tree(self, tmp_path: Path) -> None:
+        """Files keep the engine's own digest; this refuses them."""
+        path = tmp_path / "x.txt"
+        path.write_text("one")
+        assert await tree_digest(shell_target(tmp_path), str(path)) is None
+
+    async def test_an_empty_folder_has_a_stable_digest(
+        self, tmp_path: Path
+    ) -> None:
+        """Empty is a state worth recording, and the same on every platform."""
+        first = self._folder(tmp_path, "a", {})
+        second = self._folder(tmp_path, "b", {})
+        target = shell_target(tmp_path)
+        digest = await tree_digest(target, str(first))
+        assert digest is not None
+        assert digest == await tree_digest(target, str(second))
+
+    async def test_the_reader_marks_a_folder_digest(
+        self, tmp_path: Path
+    ) -> None:
+        """
+        A reader hands a folder its tree digest and says that is what it is.
+        """
+        folder = self._folder(tmp_path, "out", {"a.txt": "one"})
+        reader = ArtifactReader(shell_target(tmp_path), digests=True)
+        entry = await reader.entry(FileArtifact(id="out", path=folder))
+        assert entry["digest_of"] == "tree"
+        assert entry["sha256"] == await tree_digest(
+            shell_target(tmp_path), str(folder)
+        )
+
+    async def test_a_file_entry_carries_no_marker(
+        self, tmp_path: Path
+    ) -> None:
+        """A file's digest is the engine's, unmarked, as before."""
+        path = tmp_path / "x.txt"
+        path.write_text("one")
+        reader = ArtifactReader(shell_target(tmp_path), digests=True)
+        entry = await reader.entry(FileArtifact(id="x", path=path))
+        assert "digest_of" not in entry
+        assert entry["sha256"] == hashlib.sha256(b"one").hexdigest()
